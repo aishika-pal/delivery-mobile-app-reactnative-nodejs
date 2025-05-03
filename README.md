@@ -18,7 +18,7 @@ A cross-platform mobile app for instant delivery of food, groceries, medicines, 
 ## Features
 - Responsive UI for phones and tablets
 - Search bar at the bottom
-- Categories: Food, Groceries, Medicines, Wellness Products
+- Categories: Food, Groceries, Medicines and Healthcare & Wellness Products
 - Nearby store/eatery listing
 
 ---
