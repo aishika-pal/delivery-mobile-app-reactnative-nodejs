@@ -1,0 +1,57 @@
+{
+  "stores": {
+    "store1": {
+      "name": "Fresh Foods Eatery",
+      "type": "eatery",
+      "location": "123 Main St",
+      "categories": ["Food"],
+      "rating": 4.7
+    },
+    "store2": {
+      "name": "Quick Grocers",
+      "type": "grocery",
+      "location": "456 Market Ave",
+      "categories": ["Groceries", "Healthcare & Wellness Products"],
+      "rating": 4.5
+    },
+    "store3": {
+      "name": "HealthPlus Pharmacy",
+      "type": "pharmacy",
+      "location": "789 Health Rd",
+      "categories": ["Medicines", "Healthcare & Wellness Products"],
+      "rating": 4.8
+    }
+  },
+  "products": {
+    "product1": {
+      "name": "Veg Sandwich",
+      "storeId": "store1",
+      "category": "Food",
+      "price": 80,
+      "inStock": true
+    },
+    "product2": {
+      "name": "Organic Apples (1kg)",
+      "storeId": "store2",
+      "category": "Groceries",
+      "price": 120,
+      "inStock": true
+    },
+    "product3": {
+      "name": "Pain Relief Balm",
+      "storeId": "store3",
+      "category": "Healthcare & Wellness Products",
+      "price": 60,
+      "inStock": true
+    },
+    "product4": {
+      "name": "Paracetamol Tablets",
+      "storeId": "store3",
+      "category": "Medicines",
+      "price": 30,
+      "inStock": true
+    }
+  },
+  "orders": {},
+  "users": {}
+}
