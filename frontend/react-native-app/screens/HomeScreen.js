@@ -10,8 +10,9 @@ const categories = [
   {
     label: 'Medicines and Healthcare & Wellness Products',
     icon: '⛨',
-    key: 'healthcare-wellness',
+    key: 'medicine-healthcare-wellness',
     subcategories: [
+      { label: 'All', key: 'all' },
       { label: 'Medicines', key: 'medicines' },
       { label: 'Healthcare & Wellness', key: 'healthcare-wellness' }
     ]
@@ -22,15 +23,14 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(categories[0].key);
-  const [selectedSubCategory, setSelectedSubCategory] = useState(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState('all');
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     initLocalDB();
-    if (selectedCategory === 'healthcare-wellness') {
-      // Default to 'medicines' subcategory if not set
-      fetchStores(selectedCategory, selectedSubCategory || 'medicines');
+    if (selectedCategory === 'medicine-healthcare-wellness') {
+      fetchStores(selectedCategory, selectedSubCategory || 'all');
     } else {
       fetchStores(selectedCategory);
     }
@@ -43,10 +43,12 @@ export default function HomeScreen() {
       storeTypeFilter = 'eatery';
     } else if (categoryKey === 'groceries') {
       storeTypeFilter = 'grocery';
-    } else if (categoryKey === 'healthcare-wellness') {
+    } else if (categoryKey === 'medicine-healthcare-wellness') {
       if (subCategoryKey === 'medicines') {
         storeTypeFilter = 'pharmacy';
       } else if (subCategoryKey === 'healthcare-wellness') {
+        storeTypeFilter = ['pharmacy', 'grocery'];
+      } else if (subCategoryKey === 'all') {
         storeTypeFilter = ['pharmacy', 'grocery'];
       }
     }
@@ -84,7 +86,7 @@ export default function HomeScreen() {
             style={[styles.categoryCard, selectedCategory === cat.key && styles.categoryCardSelected]}
             onPress={() => {
               setSelectedCategory(cat.key);
-              if (cat.key === 'healthcare-wellness') setSelectedSubCategory('medicines');
+              if (cat.key === 'medicine-healthcare-wellness') setSelectedSubCategory('all');
               else setSelectedSubCategory(null);
             }}
           >
@@ -94,9 +96,9 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
       {/* Subcategory Tabs */}
-      {selectedCategory === 'healthcare-wellness' && (
+      {selectedCategory === 'medicine-healthcare-wellness' && (
         <View style={styles.subCategoryRow}>
-          {categories.find(c => c.key === 'healthcare-wellness').subcategories.map(sub => (
+          {categories.find(c => c.key === 'medicine-healthcare-wellness').subcategories.map(sub => (
             <TouchableOpacity
               key={sub.key}
               style={[
@@ -132,7 +134,7 @@ export default function HomeScreen() {
       <View style={styles.searchBarContainer}>
         <TextInput
           style={styles.searchBar}
-          placeholder="Search for food, medicines, wellness products..."
+          placeholder="Search for food, groceries and medicines, healthcare & wellness products..."
           value={search}
           onChangeText={setSearch}
         />

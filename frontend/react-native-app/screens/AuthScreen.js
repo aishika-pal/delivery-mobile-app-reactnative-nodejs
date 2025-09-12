@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, FlatList, Modal, ScrollView
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendSignInLinkToEmail, sendPasswordResetEmail, signInWithCredential, PhoneAuthProvider, RecaptchaVerifier } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithCredential, PhoneAuthProvider, RecaptchaVerifier } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 import { firebaseApp } from '../firebaseConfig';
 import { useNavigation } from '@react-navigation/native';
@@ -88,10 +88,16 @@ export default function AuthScreen() {
   const [loginEmailVerificationId, setLoginEmailVerificationId] = useState('');
 
   // --- FORGOT/RESET PASSWORD STATE ---
-  const [forgotOption, setForgotOption] = useState('reset'); // 'reset' or 'otp'
+  const [forgotPasswordOption, setForgotPasswordOption] = useState('reset'); // 'reset' or 'otp'
+  const [forgotPasswordPhone, setForgotPasswordPhone] = useState('');
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordPhoneOTPSent, setForgotPasswordPhoneOTPSent] = useState(false);
+  const [forgotPasswordPhoneVerificationId, setForgotPasswordPhoneVerificationId] = useState('');
+  const [forgotPasswordPhoneOTP, setForgotPasswordPhoneOTP] = useState('');
+  const [forgotPasswordPhoneVerified, setForgotPasswordPhoneVerified] = useState(false);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
-  const [forgotLoading, setForgotLoading] = useState(false);
 
   // --- SIGN UP PHONE OTP LOGIC ---
   const handleSendSignupPhoneOTP = async () => {
@@ -271,9 +277,6 @@ export default function AuthScreen() {
       return;
     }
     try {
-      // Simulate backend OTP verification
-      // On success, log in user (you may want to fetch user by email)
-      // For demo, just show success and redirect
       navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
       Alert.alert('Success', 'Logged in!');
     } catch (e) {
@@ -283,24 +286,53 @@ export default function AuthScreen() {
 
   // --- FORGOT/RESET PASSWORD LOGIC ---
   const handleForgotSubmit = async () => {
-    setForgotLoading(true);
+    setForgotPasswordLoading(true);
     try {
-      if (forgotOption === 'reset') {
-        if (!loginEmail) {
-          Alert.alert('Error', 'Enter your email to reset password.');
-        } else {
-          await sendPasswordResetEmail(auth, loginEmail);
+      if (forgotPasswordOption === 'reset') {
+        if (forgotPasswordEmail) {
+          await sendPasswordResetEmail(auth, forgotPasswordEmail);
           Alert.alert('Success', 'Password reset email sent.');
+          setTab('login');
+        } else if (forgotPasswordPhone) {
+          // Send OTP to phone for password reset
+          const recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {}, auth);
+          const provider = new PhoneAuthProvider(auth);
+          const verificationId = await provider.verifyPhoneNumber(
+            `${selectedCountry.code}${forgotPasswordPhone}`,
+            recaptchaVerifier
+          );
+          setForgotPasswordPhoneVerificationId(verificationId);
+          setForgotPasswordPhoneOTPSent(true);
+          setOtpTimer(30);
           setTab('reset');
+          Alert.alert('OTP Sent', 'Check your phone for the OTP.');
+        } else {
+          Alert.alert('Error', 'Enter your email or phone to reset password.');
         }
-      } else if (forgotOption === 'otp') {
+      } else if (forgotPasswordOption === 'otp') {
         setTab('loginOtp');
       }
     } catch (e) {
       Alert.alert('Error', e.message);
     }
-    setForgotLoading(false);
+    setForgotPasswordLoading(false);
   };
+
+  const handleVerifyForgotPasswordPhoneOTP = async () => {
+    if (!forgotPasswordPhoneVerificationId || !forgotPasswordPhoneOTP) {
+      Alert.alert('Error', 'Enter the OTP sent to your phone.');
+      return;
+    }
+    try {
+      const credential = PhoneAuthProvider.credential(forgotPasswordPhoneVerificationId, forgotPasswordPhoneOTP);
+      await signInWithCredential(auth, credential);
+      setForgotPasswordPhoneVerified(true);
+      Alert.alert('Success', 'Phone number verified! Now set your new password.');
+    } catch (e) {
+      Alert.alert('OTP Verification Failed', e.message);
+    }
+  };
+
   const handleResetPassword = async () => {
     if (!resetPassword || !resetConfirmPassword) {
       Alert.alert('Error', 'Enter and confirm your new password.');
@@ -310,9 +342,20 @@ export default function AuthScreen() {
       Alert.alert('Error', 'Passwords do not match.');
       return;
     }
-    // Implement your password reset logic here (e.g., via backend)
-    Alert.alert('Success', 'Password reset! Please log in.');
-    setTab('login');
+    try {
+      if (forgotPasswordEmail) {
+        Alert.alert('Success', 'Password reset! Please check your email.');
+        setTab('login');
+      } else if (forgotPasswordPhone && forgotPasswordPhoneVerified) {
+        await auth.currentUser.updatePassword(resetPassword);
+        Alert.alert('Success', 'Password reset! Please log in.');
+        setTab('login');
+      } else {
+        Alert.alert('Error', 'Please verify your phone number with OTP.');
+      }
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    }
   };
 
   // --- UI ---
@@ -546,16 +589,42 @@ export default function AuthScreen() {
       {tab === 'forgot' && (
         <View style={styles.form}>
           <Text style={styles.label}>Forgot Password</Text>
+          <Text style={styles.label}>Phone Number</Text>
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.countryBtn}
+              onPress={() => setCountryModal(true)}
+            >
+              <Text>{selectedCountry.flag} {selectedCountry.code}</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Phone Number"
+              keyboardType="phone-pad"
+              value={forgotPasswordPhone}
+              onChangeText={setForgotPasswordPhone}
+            />
+          </View>
+          <Text style={{ textAlign: 'center', marginVertical: 6 }}>or</Text>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            keyboardType="email-address"
+            value={forgotPasswordEmail}
+            onChangeText={setForgotPasswordEmail}
+            autoCapitalize="none"
+          />
           <View style={styles.row}>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}
-              onPress={() => setForgotOption('reset')}
+              onPress={() => setForgotPasswordOption('reset')}
             >
               <View style={{
                 width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#007AFF',
                 alignItems: 'center', justifyContent: 'center', marginRight: 6
               }}>
-                {forgotOption === 'reset' && <View style={{
+                {forgotPasswordOption === 'reset' && <View style={{
                   width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF'
                 }} />}
               </View>
@@ -563,13 +632,13 @@ export default function AuthScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center' }}
-              onPress={() => setForgotOption('otp')}
+              onPress={() => setForgotPasswordOption('otp')}
             >
               <View style={{
                 width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: '#007AFF',
                 alignItems: 'center', justifyContent: 'center', marginRight: 6
               }}>
-                {forgotOption === 'otp' && <View style={{
+                {forgotPasswordOption === 'otp' && <View style={{
                   width: 10, height: 10, borderRadius: 5, backgroundColor: '#007AFF'
                 }} />}
               </View>
@@ -579,9 +648,9 @@ export default function AuthScreen() {
           <TouchableOpacity
             style={styles.loginBtn}
             onPress={handleForgotSubmit}
-            disabled={forgotLoading}
+            disabled={forgotPasswordLoading}
           >
-            {forgotLoading ? (
+            {forgotPasswordLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={{ color: '#fff' }}>Submit</Text>
@@ -599,28 +668,51 @@ export default function AuthScreen() {
       {/* RESET PASSWORD FORM */}
       {tab === 'reset' && (
         <View style={styles.form}>
-          <Text style={styles.label}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="New Password"
-            secureTextEntry
-            value={resetPassword}
-            onChangeText={setResetPassword}
-          />
-          <Text style={styles.label}>Confirm Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            secureTextEntry
-            value={resetConfirmPassword}
-            onChangeText={setResetConfirmPassword}
-          />
-          <TouchableOpacity
-            style={styles.signupBtn}
-            onPress={handleResetPassword}
-          >
-            <Text style={{ color: '#fff' }}>Submit</Text>
-          </TouchableOpacity>
+          {forgotPasswordPhone && !forgotPasswordPhoneVerified && (
+            <>
+              <Text style={styles.label}>Enter Phone OTP</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="OTP"
+                keyboardType="number-pad"
+                value={forgotPasswordPhoneOTP}
+                onChangeText={setForgotPasswordPhoneOTP}
+                maxLength={6}
+              />
+              <TouchableOpacity
+                style={styles.otpBtn}
+                onPress={handleVerifyForgotPasswordPhoneOTP}
+              >
+                <Text style={{ color: '#fff' }}>Verify Phone OTP</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          {(forgotPasswordEmail || (forgotPasswordPhone && forgotPasswordPhoneVerified)) && (
+            <>
+              <Text style={styles.label}>New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="New Password"
+                secureTextEntry
+                value={resetPassword}
+                onChangeText={setResetPassword}
+              />
+              <Text style={styles.label}>Confirm Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm Password"
+                secureTextEntry
+                value={resetConfirmPassword}
+                onChangeText={setResetConfirmPassword}
+              />
+              <TouchableOpacity
+                style={styles.signupBtn}
+                onPress={handleResetPassword}
+              >
+                <Text style={{ color: '#fff' }}>Submit</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 

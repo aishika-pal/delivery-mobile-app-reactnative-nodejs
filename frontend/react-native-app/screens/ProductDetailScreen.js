@@ -5,8 +5,11 @@ import { CartContext } from '../state/CartContext';
 
 export default function ProductDetailScreen() {
   const route = useRoute();
-  const { product } = route.params;
+  const { product, store, categoryKey, subCategoryKey } = route.params;
   const { addToCart } = useContext(CartContext);
+
+  // Only show OTC/non-OTC badge for medicines from pharmacy stores
+  const isPharmacyStore = store?.type === 'pharmacy' && categoryKey === 'medicine-healthcare-wellness' && (subCategoryKey === 'medicines' || subCategoryKey === 'all');
 
   return (
     <View style={styles.container}>
@@ -14,7 +17,12 @@ export default function ProductDetailScreen() {
       <Text style={styles.price}>₹{product.price}</Text>
       <Text style={styles.stock}>{product.inStock ? 'In Stock' : 'Out of Stock'}</Text>
       <Text style={styles.desc}>{product.description || 'No description available.'}</Text>
-      <Button title="Add to Cart" onPress={() => addToCart(product)} disabled={!product.inStock} />
+      {isPharmacyStore && product.category === 'medicines' && (
+        <Text style={{ color: product.isOTC ? 'green' : 'red', fontWeight: 'bold', marginBottom: 10 }}>
+          {product.isOTC ? 'OTC' : 'Prescription Required'}
+        </Text>
+      )}
+      <Button title="Add to Cart" onPress={() => addToCart(product, store, categoryKey, subCategoryKey)} disabled={!product.inStock} />
     </View>
   );
 }

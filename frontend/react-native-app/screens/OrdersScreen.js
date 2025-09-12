@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Button, StyleSheet } from 'react-native';
+import { View, Text, FlatList, Button, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import { firebaseApp } from '../firebaseConfig';
@@ -47,7 +47,27 @@ export default function OrdersScreen() {
       </View>
       <Text>Items:</Text>
       {item.items?.map((prod, idx) => (
-        <Text key={idx} style={styles.productLine}>{prod.name} x{prod.quantity} - ₹{prod.price * prod.quantity}</Text>
+        <View key={idx} style={{ marginBottom: 2 }}>
+          <Text style={styles.productLine}>
+            {prod.name} × {prod.quantity} = ₹{prod.price * prod.quantity}
+          </Text>
+          {/* Show prescription link ONLY for non-OTC medicines from pharmacy stores */}
+          {prod.store?.type === 'pharmacy' &&
+            prod.categoryKey === 'medicine-healthcare-wellness' &&
+            (prod.subCategoryKey === 'medicines' || prod.subCategoryKey === 'all') &&
+            prod.category === 'medicines' &&
+            !prod.isOTC &&
+            prod.prescriptionUrl && (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(prod.prescriptionUrl)}
+                style={styles.prescriptionLink}
+              >
+                <Text style={{ color: '#007AFF', textDecorationLine: 'underline' }}>
+                  View Prescription
+                </Text>
+              </TouchableOpacity>
+            )}
+        </View>
       ))}
       <Text style={styles.total}>Total: ₹{item.items?.reduce((sum, prod) => sum + prod.price * prod.quantity, 0)}</Text>
       {item.driverName && (
@@ -169,6 +189,10 @@ const styles = StyleSheet.create({
   productLine: {
     fontSize: 14,
     marginLeft: 10,
+  },
+  prescriptionLink: {
+    marginLeft: 10,
+    marginTop: 2,
   },
   total: {
     fontSize: 16,

@@ -1,9 +1,39 @@
-import React, { useContext } from 'react';
-import { View, Text, FlatList, Button, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useContext, useState } from 'react';
+import { View, Text, FlatList, Button, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { CartContext } from '../state/CartContext';
+import * as DocumentPicker from 'expo-document-picker';
 
 export default function CartScreen() {
-  const { cart, removeFromCart, changeQuantity, clearCart, placeOrder } = useContext(CartContext);
+  const { cart, removeFromCart, changeQuantity, clearCart, setPrescriptionForProduct, prescriptions } = useContext(CartContext);
+  const [uploading, setUploading] = useState({});
+  const navigation = useNavigation();
+
+  // Only require prescription for non-OTC medicines from pharmacy stores
+  const isNonOTCPharmacyMedicine = (item) =>
+    item.store?.type === 'pharmacy' &&
+    item.categoryKey === 'medicine-healthcare-wellness' &&
+    (item.subCategoryKey === 'medicines' || item.subCategoryKey === 'all') &&
+    item.category === 'medicines' &&
+    !item.isOTC;
+
+  const handleUploadPrescription = async (productId) => {
+    try {
+      setUploading(prev => ({ ...prev, [productId]: true }));
+      const result = await DocumentPicker.getDocumentAsync({ type: 'image/*' });
+      if (result.type === 'success') {
+        setPrescriptionForProduct(productId, result.uri);
+        Alert.alert('Success', 'Prescription uploaded!');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to upload prescription.');
+    }
+    setUploading(prev => ({ ...prev, [productId]: false }));
+  };
+
+  const canPlaceOrder = cart.every(item =>
+    !isNonOTCPharmacyMedicine(item) || (prescriptions && prescriptions[item.id])
+  );
 
   return (
     <View style={styles.container}>
@@ -13,8 +43,21 @@ export default function CartScreen() {
         keyExtractor={item => item.id || item.name}
         renderItem={({ item }) => (
           <View style={styles.cartItem}>
-            <Text style={styles.itemName}>{item.name}</Text>
-            <Text style={styles.itemPrice}>₹{item.price}</Text>
+            <View style={{ flex: 3 }}>
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemPrice}>₹{item.price}</Text>
+              {isNonOTCPharmacyMedicine(item) && (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={{ color: 'red', fontWeight: 'bold' }}>Prescription Required</Text>
+                  <Button
+                    title={prescriptions && prescriptions[item.id] ? "Prescription Uploaded" : "Upload Prescription"}
+                    onPress={() => handleUploadPrescription(item.id)}
+                    color={prescriptions && prescriptions[item.id] ? "#4caf50" : "#007AFF"}
+                    disabled={!!(prescriptions && prescriptions[item.id]) || uploading[item.id]}
+                  />
+                </View>
+              )}
+            </View>
             <View style={styles.quantityContainer}>
               <TouchableOpacity style={styles.qtyBtn} onPress={() => changeQuantity(item.id, -1)}>
                 <Text style={styles.qtyBtnText}>-</Text>
@@ -32,7 +75,16 @@ export default function CartScreen() {
       {cart.length > 0 && (
         <View style={styles.footer}>
           <Text style={styles.total}>Total: ₹{cart.reduce((sum, item) => sum + item.price * item.quantity, 0)}</Text>
-          <Button title="Place Order" onPress={placeOrder} />
+          <Button
+            title="Place Order"
+            onPress={() => navigation.navigate('AddressScreen', { cart, prescriptions })}
+            disabled={!canPlaceOrder}
+          />
+          {!canPlaceOrder && (
+            <Text style={{ color: 'red', marginTop: 8, textAlign: 'center' }}>
+              Please upload prescriptions for all non-OTC medicines from pharmacy stores.
+            </Text>
+          )}
           <Button title="Clear Cart" onPress={clearCart} color="#888" />
         </View>
       )}
@@ -104,4 +156,3 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 });
-
